@@ -26,8 +26,7 @@ library(glmnet)
 
 We read in the data but only keep two variables, the tweet itself and the column s2 that corresponds to the negative sentiment of the tweet. We also store the s2 values as a matrix for the later modelling.
 
-Below we see some examples of negative tweets
-
+Below are 10 tweets printed out, ordered by the negativity score.
 ``` r
 #Read data from csv-file
 tweetData <- read_csv(file = "train.csv", col_types = cols_only(tweet = col_character(),
@@ -54,6 +53,10 @@ arrange(tweetData, desc(s2))
     ## 9  I hate when a shoot is cancelled & rescheduled due to weather then an hour 
     ## 10                                        My boxer is not liking this weather!
     ## # ... with 77,936 more rows, and 1 more variables: s2 <dbl>
+
+If we take a closer look at the tweets we say that they, not surprisingly, are about the weather. They also carry some sort of negative sentiment. Our goal of this analysis is to build a simple model that predicts the negativity score of these tweets. We are going to use a linear model were each word is given a score. The total predicted score of tweet will be the sum of the individual scores in each tweet that may have a non-zero score. 
+
+We are assuming that some words are useless for our analysis, these are called *Stop Words*. Some examples of these words are *I*, *and*, *such*, and *them*, it is clear that these words does not carry any interesting information. We remove these words in the code below. This is were we use the *tm* package in R. 
 
 ``` r
 #Create a corpus representation of the tweets
