@@ -55,25 +55,48 @@ arrange(tweetData, desc(s2))
     ## 10                                        My boxer is not liking this weather!
     ## # ... with 77,936 more rows, and 1 more variables: s2 <dbl>
 
+We already get a few ideas on what might be good signals of negative sentiment in the tweets. For example, the first example contains a swear word, shit, which makes the tweet negative. Our goal today is to find a list of such words. The approach is pretty simple, we want to create a simple vectorisation of the tweets and then use those vectors as inputs to a machine learning model.
+
+In this case we are satisfied with just treating the tweets as bag of words. That is, each position in the vector corresponds to a certain word and its value to the number of times the word occurs in the tweet. If we had two tweets that said:
+
+1. *The weather is bad*
+2. *Ugh, bad bad weather*
+
+We could construct the vectors, v_1, v_2 where v = (n_the, n_\weather, n_\is, n_\bad, n_\ugh) as:
+
+- v_1 = (1,1,1,1,0) 
+- v_2 = (0,1,0,2,1)
+
+We also need to process the tweets abit before we go ahead and create the vectors. We want to remove punctuation and stop words since these does not carry any interesting information about the sentiment. Below we see the code to perform this in R. First we create a data representation called corpus. We want to make sure that we are only working with a plain text source, so we transform our corpus using the *tm_map* function. This function is a wrapper to work with the corpus files in the tm package. The first argument it takes is the corpus and the rest are functions with additional arguments. 
+
+After the punctuations and the stopwords are removed we also stem the document, this means that we will represent similar words that differ only in their endings as one word. The stemmed versions of *terrible* and *terribly* would be *terribl*. We then create the tweet vectors using the DocumentTermMatrix function. 
+
+At last we pass the document term matrix through the removeSpareTerms function which removes words that are very rare in the corpus. In our example with the tweets above we could for example remove the words *the*, *Ugh* and *is* because they are only present in a single tweet or observation.
+
 ``` r
 #Create a corpus representation of the tweets
 corp <- Corpus(VectorSource(tweetData$tweet))
 corp <- tm_map(corp, PlainTextDocument) 
-corp <- tm_map(corp, removePunctuation)                     #Removes punctiation
-corp <- tm_map(corp, removeWords, stopwords("en"))          #Remove stopwords
-corp <- tm_map(corp, stemDocument, language = "english")    #Stem words in the tweets
-dtm <- DocumentTermMatrix(corp)                             #Create the matrix and remove unuseful terms
+corp <- tm_map(corp, removePunctuation)                     # Removes punctiation
+corp <- tm_map(corp, removeWords, stopwords("en"))          # Remove stopwords
+corp <- tm_map(corp, stemDocument, language = "english")    # Stem words in the tweets
+dtm <- DocumentTermMatrix(corp)                             # Create the matrix and remove unuseful terms
 dtm <- removeSparseTerms(dtm, 0.999)
 ```
+So finally, we have our data processed and ready. Now, since our goal is to create a list of words that are associated with tweets about bad weather, we use a simple model that is easy to interpret. We use a regularized version of the linear regression which combines L1 and L2 regularization, also called elastic net logistic regression. 
+
+We prepare our data using the built in spare.model.matrix function. To find the appropriate amount of regularization we use a cross-validation approach to find it. The plot below shows the error plotted against different values of the lambda parameter. We choose to use the value that minimizes the error.
 
 ``` r
 data <- cbind(s2, data.frame(as.matrix(dtm))) 
-mat <- sparse.model.matrix(s2~. ,data)                      #Create a sparse model matrix 
-                                                            #to be used as input in the model
-model <- cv.glmnet(y = s2, x = mat, alpha = 0.5)            #Cross validate the elastic net to tune lambda
+mat <- sparse.model.matrix(s2~. ,data)                      # Create a sparse model matrix 
+                                                            # to be used as input in the model
+model <- cv.glmnet(y = s2, x = mat, alpha = 0.5)            # Cross validate the elastic net to tune lambda
 ```
 
 ![](kaggleExample_files/figure-markdown_github/unnamed-chunk-5-1.png)
+
+At last we refit our model to the data using the tuned lambda value. The model we are using is linear so each word has its own beta parameter. The value of the parameter can be intepreted as the marginal increase of expected negativity score if the word is in the tweet. So a higher parameter value indicates that the word has a negative sentiment. Below we see the list of the 10 words that has the highest parameter estimates.
 
 ``` r
 finalModel <- glmnet(y = s2, x = mat, alpha = 0.5, lambda = model$lambda.min)
@@ -95,3 +118,5 @@ arrange(coef, desc(beta))
     ## 9      crap 0.3428576
     ## 10  terribl 0.3324477
     ## # ... with 1,067 more rows
+
+As we see in the model, the words are stemmed as discussed before. It is obvious that our model managed to find negative words such as *crappi*, *shitti* or *depress*.
