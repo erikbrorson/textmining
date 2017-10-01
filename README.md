@@ -1,2 +1,2 @@
 # This is a collection of my text mining projects
-Currently under construction....
+In this repo I collect some side projects I have done
